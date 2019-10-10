@@ -6,6 +6,7 @@
  */
 
 const aggregate = require('./aggregate');
+const executeAsync = require('./executeAsync');
 const filter = require('./filter');
 const forwardedHost = require('./forwardedHost');
 const mergeBody = require('./mergeBody');
@@ -17,6 +18,7 @@ const waitFor = require('./waitFor');
 
 module.exports = {
   aggregate,
+  executeAsync,
   filter,
   forwardedHost,
   mergeBody,
