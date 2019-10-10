@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-const { merge, set } = require('lodash');
+const { merge } = require('lodash');
 const WorkflowError = require('../entities/WorkflowError');
 const request = require('../services/request');
 const urlBuilder = require('../services/urlBuilder');
@@ -15,10 +15,16 @@ module.exports = (method, url, path) => {
   return async (container) => {
     try {
       const { body, statusCode } = await request(container)[method](buildedUrl);
-      if (path) {
-        return merge(container, { statusCode, body: set({}, path, body) });
+      container.statusCode = statusCode;
+      if (path && !container.body[path]) {
+        container.body[path] = body;
+        return;
       }
-      return merge(container, { statusCode, body });
+      if (path) {
+        merge(container.body[path], body);
+        return;
+      }
+      merge(container.body, body);
     } catch (err) {
       const error = new WorkflowError(err, err.response);
       error.setContainer({
