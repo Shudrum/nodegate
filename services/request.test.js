@@ -6,7 +6,27 @@ const url = (url) => {
   if (typeof url !== 'string') {
     throw new TypeError('Invalid argument: "url", must be a string');
   }
-  const urlClosure = () => url;
+
+  let urlArray = [];
+
+  const matches = [...url.matchAll(/(:([a-zA-Z0-9-_]+))/g)];
+  matches.reduce((part, match) => {
+    const before = part.substring(0, part.indexOf(match[0]));
+    const after = part.substring(part.indexOf(match[0]) + match[0].length, part.length);
+    urlArray = [...urlArray, `${before}`, match[2]];
+    if (match === matches[matches.length - 1]) {
+      urlArray.push(after);
+    }
+    return after;
+  }, url);
+
+  if (matches.length === 0) {
+    urlArray = [url];
+  }
+
+  const urlClosure = (params = {}) => (
+    urlArray.map((urlPart) => (params[urlPart] || urlPart)).join('')
+  );
   return urlClosure;
 };
 
@@ -16,6 +36,31 @@ describe('entities/url', () => {
   });
   it('should be a closure', () => {
     expect(url('http://ds9')).toBeInstanceOf(Function);
+  });
+  it('should properly compile the url without parameter', () => {
+    expect(url('https://voyager.com/crew')()).toEqual('https://voyager.com/crew');
+  });
+  it('should properly compile the urls', () => {
+    const tests = [{
+      url: 'https://voyager.com/crew/:id',
+      params: { id: 1 },
+      result: 'https://voyager.com/crew/1',
+    }, {
+      url: 'https://voyager.com/crew/:id/:id2',
+      params: { id: 1, id2: 2 },
+      result: 'https://voyager.com/crew/1/2',
+    }, {
+      url: 'https://voyager.com/crew/:id/:id2/path/:id3',
+      params: { id: 1, id2: 2, id3: 3 },
+      result: 'https://voyager.com/crew/1/2/path/3',
+    }, {
+      url: 'https://voyager.com/crew/:id/:id2/path/:id3/end',
+      params: { id: 1, id2: 2, id3: 3 },
+      result: 'https://voyager.com/crew/1/2/path/3/end',
+    }];
+    tests.forEach((value) => {
+      expect(url(value.url)(value.params)).toEqual(value.result);
+    });
   });
 });
 
@@ -167,6 +212,7 @@ describe('services/request', () => {
   beforeEach(() => {
     testService = service('https://voyager');
     testService.action('callJaneway', 'get', '/janeway');
+    testService.action('callSomeone', 'get', '/:name');
   });
   it.todo('should return a Promise');
   it('should throw an error if the first argument is neither a string nor an object', () => {
@@ -187,6 +233,22 @@ describe('services/request', () => {
       const { statusCode, body } = await request(testService('callJaneway'));
       expect(statusCode).toEqual(200);
       expect(body).toEqual({ response: 'Amomawe' });
+    });
+    it('should properly do the request', async () => {
+      nock('https://voyager')
+        .get('/Tuvok')
+        .reply(200, {
+          response: 'We often fear what we don\'t understand. Our best defence is knowledge.',
+        });
+      const { statusCode, body } = await request(testService('callSomeone'), {
+        params: {
+          name: 'Tuvok',
+        },
+      });
+      expect(statusCode).toEqual(200);
+      expect(body).toEqual({
+        response: 'We often fear what we don\'t understand. Our best defence is knowledge.',
+      });
     });
   });
   describe('Called with a method and a url', () => {
