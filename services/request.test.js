@@ -13,7 +13,7 @@ const url = (url) => {
   matches.reduce((part, match) => {
     const before = part.substring(0, part.indexOf(match[0]));
     const after = part.substring(part.indexOf(match[0]) + match[0].length, part.length);
-    urlArray = [...urlArray, `${before}`, match[2]];
+    urlArray.push(`${before}`, match[2]);
     if (match === matches[matches.length - 1]) {
       urlArray.push(after);
     }
@@ -68,10 +68,23 @@ describe('entities/url', () => {
 // SERVICE
 // =================================================================================================
 
-const service = (baseUrl) => {
+// { data: {  } , options }
+const service = (name, baseUrl, { data = {}, options = {} } = {}) => {
+  // validateType(name, 'string', 'Invalid argument: "name", must be a string');
+
+  if (typeof name !== 'string') {
+    throw new TypeError('Invalid argument: "name", must be a string');
+  }
   if (typeof baseUrl !== 'string') {
     throw new TypeError('Invalid argument: "baseUrl", must be a string');
   }
+  if (typeof data !== 'object') {
+    throw new TypeError('Invalid option argument: "data", must be an object');
+  }
+  if (typeof options !== 'object') {
+    throw new TypeError('Invalid option argument: "options", must be an object');
+  }
+
   const actions = {};
   const service = (actionName) => {
     if (typeof actionName !== 'string') {
@@ -80,7 +93,11 @@ const service = (baseUrl) => {
     return actions[actionName];
   };
 
-  service.action = (name, method, path) => {
+  service.data = data;
+
+  service.options = options;
+
+  service.action = (name, method, path, { data = {}, options = {} } = {}) => {
     if (typeof name !== 'string') {
       throw new TypeError('Invalid argument: "name", must be a string');
     }
@@ -90,31 +107,61 @@ const service = (baseUrl) => {
     if (typeof path !== 'string') {
       throw new TypeError('Invalid argument: "path", must be a string');
     }
+    if (typeof data !== 'object') {
+      throw new TypeError('Invalid option argument: "data", must be an object');
+    }
+    if (typeof options !== 'object') {
+      throw new TypeError('Invalid option argument: "options", must be an object');
+    }
     actions[name] = {
       name,
       method,
       url: url(`${baseUrl}${path}`),
       service,
+      data,
+      options,
     };
   };
+
   service.toString = () => baseUrl;
+
+  // Service.data (headers, body, params, ...)
+  // Service.options
+
   return service;
 };
 
 describe('entities/service', () => {
   it('should be a closure', () => {
-    expect(service('https://ds9')).toBeInstanceOf(Function);
+    expect(service('DS9', 'https://ds9')).toBeInstanceOf(Function);
+  });
+  it('should throw an error if the "name" argument is not a string', () => {
+    expect(() => service(1, 'https://ds9')).toThrow();
   });
   it('should throw an error if the "url" argument is not a string', () => {
-    expect(() => service(1)).toThrow();
+    expect(() => service('DS9', 1)).toThrow();
   });
   it('should render the url when converted toString', () => {
-    expect(service('https://ds9').toString()).toBe('https://ds9');
+    expect(service('DS9', 'https://ds9').toString()).toBe('https://ds9');
+  });
+  it('should get data from the third argument', () => {
+    const testService = service('DS9', 'https://ds9', { data: { captain: 'Janeway' } });
+    expect(testService.data.captain).toEqual('Janeway');
+  });
+  it('should throw an error if the third argument\'s data is not an object', () => {
+    expect(() => service('DS9', 'https://ds9', { data: 1 })).toThrow();
+  });
+  it('should get options from the third argument', () => {
+    const testService = service('DS9', 'https://ds9', { options: { timeout: 150 } });
+    expect(testService.options.timeout).toEqual(150);
+  });
+  it('should throw an error if the third argument\'s options is not an object', () => {
+    expect(() => service('DS9', 'https://ds9', { options: 1 })).toThrow();
   });
   describe('service.action()', () => {
     let testService;
     beforeEach(() => {
-      testService = service('https://enterprise');
+      testService = service('DS9', 'https://enterprise');
     });
     it('should throw an error if the "name" argument is not a string', () => {
       expect(() => testService.action(1, 'get', '/captain')).toThrow();
@@ -142,10 +189,20 @@ describe('entities/service', () => {
       testService.action('getCaptain', 'get', '/captain');
       expect(testService('getCaptain').method).toEqual('get');
     });
-  });
-  describe('service.headers', () => {
-    it.todo('should add headers for the service');
-    it.todo('should add multiple headers for the service');
+    it('should get data from the third argument', () => {
+      testService.action('getCaptain', 'get', '/captain', { data: { name: 'Janeway' } });
+      expect(testService('getCaptain').data.name).toEqual('Janeway');
+    });
+    it('should throw an error if the third argument\'s data is not an object', () => {
+      expect(() => testService.action('getCaptain', 'get', '/captain', { data: 1 })).toThrow();
+    });
+    it('should get options from the third argument', () => {
+      testService.action('getCaptain', 'get', '/captain', { options: { timeout: 150 } });
+      expect(testService('getCaptain').options.timeout).toEqual(150);
+    });
+    it('should throw an error if the third argument\'s options is not an object', () => {
+      expect(() => testService.action('getCaptain', 'get', '/captain', { options: 1 })).toThrow();
+    });
   });
 });
 
@@ -210,7 +267,7 @@ const nock = require('nock');
 describe('services/request', () => {
   let testService;
   beforeEach(() => {
-    testService = service('https://voyager');
+    testService = service('Voyager', 'https://voyager');
     testService.action('callJaneway', 'get', '/janeway');
     testService.action('callSomeone', 'get', '/:name');
   });
