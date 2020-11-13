@@ -57,7 +57,7 @@ describe('workers/aggregate', () => {
       expect(container.body.phasers).toBe(16);
       expect(container.body.torpedoes).toBe(2);
     });
-    it('should use the urlBuilder on the URL', async () => {
+    it('should use the url entity on the URL', async () => {
       const container = {
         body: {
           name: 'NCC-1717',
@@ -68,7 +68,11 @@ describe('workers/aggregate', () => {
         phasers: 16,
         torpedoes: 2,
       });
-      await aggregate('get', 'https://wiki.federation.com/armaments/{body.name}')(container);
+      await aggregate(
+        'get',
+        'https://wiki.federation.com/armaments/:name',
+        ({ body }) => ({ params: { name: body.name } }),
+      )(container);
       expect(container.body.disruptors).toEqual(5);
       expect(container.body.phasers).toEqual(16);
       expect(container.body.torpedoes).toEqual(2);
@@ -94,13 +98,13 @@ describe('workers/aggregate', () => {
     });
   });
   describe('with "path" option', () => {
-    it('should correclty use aggregate the result on the defined path', async () => {
+    it('should aggregate the result on the defined path', async () => {
       const container = getEmpty();
       nock('https://wiki.federation.com').get('/armaments').reply(200, {
         phasers: 16,
         torpedoes: 2,
       });
-      await aggregate('get', 'https://wiki.federation.com/armaments', {
+      await aggregate('get', 'https://wiki.federation.com/armaments', () => {}, {
         path: 'armaments',
       })(container);
       expect(container.body.armaments.phasers).toBe(16);
@@ -118,7 +122,7 @@ describe('workers/aggregate', () => {
         phasers: 16,
         torpedoes: 2,
       });
-      await aggregate('get', 'https://wiki.federation.com/armaments', {
+      await aggregate('get', 'https://wiki.federation.com/armaments', () => {}, {
         path: 'armaments',
       })(container);
       expect(container.body.armaments.disruptors).toBe(5);
@@ -133,7 +137,7 @@ describe('workers/aggregate', () => {
         },
       };
       nock('https://wiki.federation.com').post('/armaments').reply(200, 'OK');
-      await aggregate('post', 'https://wiki.federation.com/armaments', {
+      await aggregate('post', 'https://wiki.federation.com/armaments', () => {}, {
         path: 'text',
       })(container);
       expect(container.body).toEqual({
@@ -178,12 +182,12 @@ describe('workers/aggregate', () => {
       try {
         const container = getEmpty();
         nock('https://wiki.federation.com').post('/section31').reply(500, {
-          reason: 'Section 31 does not exists',
+          reason: 'Section 31 does not exist',
         });
         await aggregate('post', 'https://wiki.federation.com/section31')(container);
       } catch (err) {
         expect(err.container.errorBody).toEqual({
-          reason: 'Section 31 does not exists',
+          reason: 'Section 31 does not exist',
         });
       }
     });
@@ -205,6 +209,7 @@ describe('workers/aggregate', () => {
       await aggregate(
         'post',
         'https://wiki.federation.com/armaments',
+        () => {},
         { failStatusCodes: [500] },
       )(container);
       expect(container.body.content).toEqual('This article does not exists');
