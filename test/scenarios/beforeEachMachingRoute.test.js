@@ -3,7 +3,7 @@ const request = require('supertest');
 const nodegate = require('../../services/nodegate');
 const { aggregate, routeMatch } = require('../../workers');
 
-describe('scenarios/beforeEachMachingRoute', () => {
+describe('scenarios/beforeEachMatchingRoute', () => {
   let gate;
   beforeEach(() => {
     gate = nodegate();
@@ -14,7 +14,7 @@ describe('scenarios/beforeEachMachingRoute', () => {
       method: 'get',
       path: '/captain/:name',
       workflow: [
-        aggregate('get', 'https://federation.com/captains/{params.name}', { path: 'data' }),
+        aggregate('get', 'https://federation.com/captains/:name', { path: 'data' }),
       ],
     });
     gate.route({
@@ -34,7 +34,7 @@ describe('scenarios/beforeEachMachingRoute', () => {
   afterEach(() => {
     nock.cleanAll();
   });
-  it('should set the "type" property if the path match /captain', async () => {
+  it('should set the "type" property if the path matches /captain', async () => {
     await request(gate)
       .get('/captain/kirk')
       .expect(200)

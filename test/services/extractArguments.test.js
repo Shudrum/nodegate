@@ -1,76 +1,4 @@
-const buildDictionary = (signaturesTree, signature) => {
-  const paramNames = [];
-  const rootTree = signaturesTree;
-  Object.entries(signature).forEach(([paramName, paramType]) => {
-    if (paramType.slice(-1) === '?') {
-      const altSignature = { ...signature };
-      delete altSignature[paramName];
-      buildDictionary(rootTree, altSignature);
-      paramType = paramType.slice(0, -1);
-    }
-    if (!signaturesTree[paramType]) {
-      signaturesTree[paramType] = {};
-    }
-    paramNames.push(paramName);
-    signaturesTree = signaturesTree[paramType];
-  });
-  signaturesTree.resolve = paramNames;
-};
-
-const validate = (signature) => {
-  let lastOptionalType;
-  const optionalTypes = {};
-  Object.entries(signature).forEach(([paramName, paramType]) => {
-    if (paramType.slice(-1) === '?') {
-      if (optionalTypes[paramType]) {
-        throw new TypeError(
-          'You cannot declare two or more optional parameters of the same type:\n'
-          + `  '${optionalTypes[paramType]}' and '${paramName}' are of type '${paramType}'\n`,
-        );
-      }
-      optionalTypes[paramType] = paramName;
-      lastOptionalType = paramType;
-    } else if (lastOptionalType) {
-      throw new TypeError('Optional parameters must be declared at the end.');
-    }
-  });
-};
-
-const extractArguments = (methodName, signatures, defaults = {}) => {
-  if (!Array.isArray(signatures)) signatures = [signatures];
-  let signaturesTree = {};
-  signatures.forEach((signature) => {
-    validate(signature);
-    buildDictionary(signaturesTree, signature);
-  });
-  // console.log(signaturesTree);
-  return (...args) => {
-    const result = { ...defaults };
-    let currentTree = signaturesTree;
-    args.forEach((arg) => {
-      currentTree = currentTree[typeof arg];
-      if (!currentTree) {
-        const logSignatures = signatures.map(
-          (signature) => `  ${methodName}(${Object.entries(signature)
-            .map(([name, type]) => `${name}:${type}`)
-            .join(', ')
-          })`,
-        ).join('\n');
-
-        throw new TypeError(
-          `Invalid call to '${methodName}'\n\n`
-          + `Faulty call: ${methodName}(${args.map((currentArg) => (typeof currentArg)).join(', ')})\n\n`
-          + `The correct usages are:\n${logSignatures}\n`,
-        );
-      }
-    });
-    const paramNames = currentTree.resolve;
-    for (let index = 0; index < args.length; index += 1) {
-      result[paramNames[index]] = args[index];
-    }
-    return result;
-  };
-};
+const extractArguments = require('../../services/extractArguments');
 
 describe('services/extractArguments', () => {
   it('should validate a simple signature of one argument', () => {
@@ -137,6 +65,19 @@ describe('services/extractArguments', () => {
         + 'Faulty call: methodName(number)\n\n'
         + 'The correct usages are:\n'
         + '  methodName(url:string)\n',
+      );
+    }
+  });
+  it('should throw an error if an argument is missing', () => {
+    expect.assertions(1);
+    try {
+      extractArguments('methodName', { param: 'string', data: 'function' })('hello');
+    } catch (err) {
+      expect(err.message).toEqual(
+        'Invalid call to \'methodName\'\n\n'
+        + 'Faulty call: methodName(string)\n\n'
+        + 'The correct usages are:\n'
+        + '  methodName(param:string, data:function)\n',
       );
     }
   });

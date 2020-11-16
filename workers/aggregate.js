@@ -7,8 +7,9 @@
 
 const { assign } = require('lodash');
 const WorkflowError = require('../entities/WorkflowError');
-const request = require('../services/request2');
-const url = require('../entities/url');
+const extractArguments = require('../services/extractArguments');
+const toUrl = require('../entities/url');
+const request = require('../services/request');
 
 const setBodyToContainer = (body, container, options) => {
   if (!options.path && typeof body !== 'object') {
@@ -25,38 +26,40 @@ const setBodyToContainer = (body, container, options) => {
   assign(container.body, body);
 };
 
-// url();
-// method url => url();
-
-// aggregate(service(action), {})
-// aggregate('get', url('blabla'), {})
-// aggregate('get',        'https://ds9/crewmember/:id', (container) => ({ params : { id: 'janeway'}}), { options });
-// aggregate(/* method */, /* url */,                    /* data */,                                   /* options */);
-// path: toto => container.body.toto
-//
-
-// module.exports = (method, url, data = () => {}, options = {}) => {
 module.exports = (...args) => {
-  if (typeof args[0] === 'string') {
-    if (typeof args[1] === 'string') {
-      args[1] = url(args[1]);
-    }
-    /* method , url() , data , options */
+  let {
+    action, method, url, data, options,
+  } = extractArguments(
+    'aggregate',
+    [
+      { action: 'object', data: 'function?', options: 'object?' },
+      {
+        method: 'string', url: 'function', data: 'function?', options: 'object?',
+      }, {
+        method: 'string', url: 'string', data: 'function?', options: 'object?',
+      },
+    ],
+    {
+      data: (container) => container,
+      options: {},
+    },
+  )(...args);
+
+  if (typeof url === 'string') {
+    url = toUrl(url);
   }
-  const method = args[0];
-  const builtUrl = args[1];
-  const data = args[2] || (() => {});
-  const options = args[3] || {};
+
   const failStatusCodes = options.failStatusCodes || [400, 500];
   return async (container) => {
     try {
-      const { body, statusCode } = await request(
-        method,
-        builtUrl,
-        data(container),
-      );
-      container.statusCode = statusCode;
-      setBodyToContainer(body, container, options);
+      let response;
+      if (action) {
+        response = await request(action, data(container), options);
+      } else {
+        response = await request(method, url, data(container));
+      }
+      container.statusCode = response.statusCode;
+      setBodyToContainer(response.body, container, options);
     } catch (err) {
       const body = err.response && err.response.body;
       const statusCode = err.response ? err.response.statusCode : 500;

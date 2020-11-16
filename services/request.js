@@ -5,78 +5,56 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-const { get, merge } = require('lodash');
-const requestNative = require('request-promise-native');
-const { getConfiguration } = require('./configuration');
+const got = require('got');
+const { merge } = require('lodash');
 
-const project = (container, value) => {
-  if (typeof value === 'object' && !Array.isArray(value)) {
-    Object.keys(value).forEach((key) => {
-      value[key] = project(container, value[key]);
-    });
-    return value;
-  }
-  if (typeof value === 'string') {
-    return get(container, value);
-  }
-  throw new TypeError('Invalid projection, must be an object or a string');
-};
+const sendRequest = (method, url, data /* , options */) => (
+  got[method.toLowerCase()](url(data.params || {}), {
+    headers: data.headers || {},
+    json: data.body || {},
+    allowGetBody: true,
+    responseType: 'json',
+  })
+);
 
-const validateArguments = (container, method, url, options) => {
-  if (typeof container !== 'object' || Array.isArray(container)) {
-    throw new TypeError('Invalid argument: "container", must be an object');
+const doServiceRequest = (action, data = {}, options = {}) => {
+  if (typeof data !== 'object') {
+    throw new TypeError('Invalid argument: "data", must be an object');
   }
-  if (typeof method !== 'string') {
-    throw new TypeError('Invalid argument: "method", must be a string');
-  }
-  if (typeof url !== 'string' && typeof url !== 'function') {
-    throw new TypeError('Invalid argument: "url", must be an string or a function');
-  }
-  if (typeof options !== 'object' || Array.isArray(options)) {
+  if (typeof options !== 'object') {
     throw new TypeError('Invalid argument: "options", must be an object');
   }
+  return sendRequest(
+    action.method,
+    action.url,
+    merge(
+      action.service.data,
+      action.data,
+      data,
+    ),
+    options,
+  );
 };
 
-const projectKey = (key, requestOptions, container, options) => {
-  if (options[key] === null) {
-    requestOptions[key] = null;
-  } else if (!options[key]) {
-    requestOptions[key] = container[key] || null;
-  } else {
-    requestOptions[key] = project(container, { ...options[key] });
+const doDirectRequest = (method, url, data = {}, options = {}) => {
+  if (typeof url !== 'function') {
+    throw new TypeError('Invalid argument: "url", must be a function');
   }
-};
-
-const mergeConfiguration = (requestOptions, configuration) => {
-  if (!configuration.headers) {
-    return;
+  if (typeof data !== 'object') {
+    throw new TypeError('Invalid argument: "data", must be an object');
   }
-
-  if (typeof requestOptions.headers === 'object' && requestOptions.headers !== null) {
-    merge(requestOptions.headers, configuration.headers);
-  } else {
-    requestOptions.headers = configuration.headers;
+  if (typeof options !== 'object') {
+    throw new TypeError('Invalid argument: "options", must be an object');
   }
+  return sendRequest(method, url, data, options);
 };
 
-const request = (container, method, url, options = {}) => {
-  validateArguments(container, method, url, options);
-
-  const { request: requestConfiguration, ...configuration } = getConfiguration();
-  const requestOptions = {
-    ...requestConfiguration,
-    ...configuration,
-    ...options,
-    method,
-    uri: typeof url === 'function' ? url(container) : url,
-  };
-
-  projectKey('headers', requestOptions, container, options);
-  projectKey('body', requestOptions, container, options);
-
-  mergeConfiguration(requestOptions, configuration);
-
-  return requestNative(requestOptions);
+module.exports = (...args) => {
+  if (typeof args[0] === 'object') {
+    return doServiceRequest(...args);
+  }
+  if (typeof args[0] === 'string') {
+    return doDirectRequest(...args);
+  }
+  throw new TypeError('Invalid arguments');
 };
-
-module.exports = request;

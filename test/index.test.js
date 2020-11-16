@@ -24,7 +24,7 @@ describe('index', () => {
       method: 'get',
       path: '/captain/:id',
       workflow: [
-        nodegate.workers.aggregate('get', 'https://wiki.enterprise.com/captain/{params.id}'),
+        nodegate.workers.aggregate('get', 'https://wiki.enterprise.com/captain/:id'),
       ],
     });
     nock('https://wiki.enterprise.com')
@@ -68,38 +68,6 @@ describe('index', () => {
       .expect(200)
       .then(({ headers }) => {
         expect(headers['access-control-allow-origin']).toBeFalsy();
-      });
-    nodegate.configure({});
-  });
-  it('should be possible to add a default header for each request', async () => {
-    expect.assertions(1);
-    nodegate.configure({
-      headers: {
-        'x-ship-origin': 'enterprise',
-      },
-    });
-    const gate = nodegate();
-    gate.route({
-      method: 'get',
-      path: '/captain/:id',
-      workflow: [
-        nodegate.workers.aggregate('get', 'https://wiki.enterprise.com/captain/{params.id}'),
-      ],
-    });
-    nock('https://wiki.enterprise.com', {
-      reqheaders: {
-        'x-ship-origin': 'enterprise',
-      },
-    })
-      .get('/captain/1')
-      .reply(200, {
-        name: 'Jean-Luc Picard',
-      });
-    await request(gate)
-      .get('/captain/1')
-      .expect(200)
-      .then(({ body }) => {
-        expect(body.name).toEqual('Jean-Luc Picard');
       });
     nodegate.configure({});
   });

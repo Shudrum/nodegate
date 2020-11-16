@@ -6,8 +6,8 @@
  */
 
 class WorkflowError extends Error {
-  constructor(message, response = null) {
-    super(message);
+  constructor(error, response = null) {
+    super(typeof error === 'string' ? error : error.message);
     this.response = response;
     this.container = null;
     Error.captureStackTrace(this, this.constructor);

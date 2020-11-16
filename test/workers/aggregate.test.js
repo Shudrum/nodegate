@@ -1,11 +1,13 @@
 const nock = require('nock');
 const aggregate = require('../../workers/aggregate');
 const { getEmpty } = require('../../entities/container');
+const service = require('../../entities/service');
 const WorkflowError = require('../../entities/WorkflowError');
+const url = require('../../entities/url');
 
 describe('workers/aggregate', () => {
   it('should correctly return a function', () => {
-    expect(aggregate()).toBeInstanceOf(Function);
+    expect(aggregate('get', 'https://voyager/crew')).toBeInstanceOf(Function);
   });
   it('should not throw an error "Cannot read property \'body|headers\' of undefined|null" if not related to a request', async () => {
     expect.assertions(4);
@@ -17,6 +19,26 @@ describe('workers/aggregate', () => {
       expect(err.message).not.toEqual('TypeError: Cannot read property \'body\' of null');
       expect(err.message).not.toEqual('TypeError: Cannot read property \'headers\' of null');
     }
+  });
+  it('should aggregate using an action', async () => {
+    const container = getEmpty();
+    const testService = service('Voyager', 'https://voyager');
+    testService.action('getManifest', 'get', '/manifest');
+    container.body.phasers = 4;
+    nock('https://voyager').get('/manifest').reply(200, {
+      crew: 141,
+    });
+    await aggregate(testService('getManifest'))(container);
+    expect(container.body.crew).toEqual(141);
+  });
+  it('should aggregate using an url entity', async () => {
+    const container = getEmpty();
+    container.body.phasers = 4;
+    nock('https://wiki.federation.com').get('/armaments').reply(200, {
+      phasers: 16,
+    });
+    await aggregate('get', url('https://wiki.federation.com/armaments'))(container);
+    expect(container.body.phasers).toEqual(16);
   });
   it('should override existing keys on the container\'s body', async () => {
     const container = getEmpty();
